@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Visual Data Transfer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    
+    .mode-selector {
+      margin-bottom: 20px;
+    }
+    
+    .controls {
+      margin-bottom: 20px;
+    }
+    
+    #canvas-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    
+    canvas {
+      border: 1px solid #ccc;
+    }
+    
+    .fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 999;
+      background: black;
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .info-panel {
+      margin-top: 20px;
+    }
+    
+    #progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #f0f0f0;
+      margin-top: 10px;
+    }
+    
+    #progress-fill {
+      height: 100%;
+      background-color: #4caf50;
+      width: 0%;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <h1>Visual Data Transfer</h1>
+  
+  <div class="mode-selector">
+    <button id="sender-mode-btn">Sender Mode</button>
+    <button id="receiver-mode-btn">Receiver Mode</button>
+  </div>
+  
+  <div id="sender-controls" class="controls hidden">
+    <button id="select-folder-btn">Select Folder to Send</button>
+    <button id="start-transmission-btn" disabled>Start Transmission</button>
+    <button id="next-slide-btn" disabled>Next Slide</button>
+    <button id="stop-transmission-btn" disabled>Stop Transmission</button>
+  </div>
+  
+  <div id="receiver-controls" class="controls hidden">
+    <button id="select-destination-btn">Select Destination Folder</button>
+    <button id="start-receiving-btn" disabled>Start Receiving</button>
+    <button id="capture-slide-btn" disabled>Capture Slide</button>
+    <button id="stop-receiving-btn" disabled>Stop Receiving</button>
+  </div>
+  
+  <div id="canvas-container">
+    <canvas id="sender-canvas" width="800" height="600"></canvas>
+    <canvas id="receiver-canvas" width="800" height="600" class="hidden"></canvas>
+    <video id="video-preview" width="800" height="600" class="hidden"></video>
+  </div>
+  
+  <div class="info-panel">
+    <div id="status-message">Select a mode to begin</div>
+    <div id="progress-container" class="hidden">
+      <div>Progress: <span id="progress-text">0%</span></div>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

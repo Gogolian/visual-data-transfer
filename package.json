@@ -1,0 +1,14 @@
+{
+    "name": "visual-data-transfer",
+    "version": "1.0.0",
+    "description": "Transfer folders between computers using visual encoding",
+    "main": "main.js",
+    "scripts": {
+      "start": "electron ."
+    },
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+      "electron": "^28.2.0"
+    }
+  }
