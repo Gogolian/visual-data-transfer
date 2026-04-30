@@ -24,6 +24,23 @@ test('scans and recreates a folder with nested files', async () => {
   );
 });
 
+test('scans folder entries in deterministic name order', async () => {
+  const sourceParent = await fs.mkdtemp(path.join(os.tmpdir(), 'vdt-source-'));
+  const source = path.join(sourceParent, 'payload');
+
+  await fs.mkdir(path.join(source, 'b-folder'), { recursive: true });
+  await fs.mkdir(path.join(source, 'a-folder'), { recursive: true });
+  await fs.writeFile(path.join(source, 'z.txt'), 'z');
+  await fs.writeFile(path.join(source, 'm.txt'), 'm');
+
+  const folderData = await scanFolder(source);
+
+  assert.deepEqual(
+    folderData.children.map(child => child.name),
+    ['a-folder', 'b-folder', 'm.txt', 'z.txt']
+  );
+});
+
 test('rejects payload paths that would escape the destination', async () => {
   const destinationParent = await fs.mkdtemp(path.join(os.tmpdir(), 'vdt-destination-'));
 

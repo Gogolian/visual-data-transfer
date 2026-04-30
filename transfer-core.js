@@ -21,6 +21,7 @@
   const CHUNK_LENGTH_BITS = 32;
   const CHECKSUM_START_CELL = 64;
   const COLOR_BIT_WIDTH = 3;
+  const MAX_CHUNKS = 0xffff;
 
   const RGB_COLORS = COLORS.map(hexToRgb);
 
@@ -202,14 +203,24 @@
     return text;
   }
 
-  function chunkBinaryData(binaryData, chunkSize) {
+  function chunkBinaryData(binaryData, chunkSize, maxChunks = MAX_CHUNKS) {
+    if (typeof binaryData !== 'string' || !/^[01]*$/.test(binaryData)) {
+      throw new Error('Binary data must be a string of 0 and 1 characters.');
+    }
     if (!Number.isSafeInteger(chunkSize) || chunkSize < 1) {
       throw new Error('Chunk size must be a positive integer.');
+    }
+    if (!Number.isSafeInteger(maxChunks) || maxChunks < 1) {
+      throw new Error('Maximum chunks must be a positive integer.');
     }
 
     const chunks = [];
     for (let i = 0; i < binaryData.length; i += chunkSize) {
       chunks.push(binaryData.slice(i, i + chunkSize));
+    }
+
+    if (chunks.length > maxChunks) {
+      throw new Error(`Transfer requires ${chunks.length} chunks, but the maximum is ${maxChunks}.`);
     }
 
     return chunks;
@@ -218,6 +229,8 @@
   return {
     GRID_SIZE,
     COLORS,
+    COLOR_BIT_WIDTH,
+    MAX_CHUNKS,
     drawMetadata,
     readMetadata,
     readDataCells,

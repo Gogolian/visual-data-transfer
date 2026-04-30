@@ -1,6 +1,8 @@
 const {
   GRID_SIZE,
   COLORS,
+  COLOR_BIT_WIDTH,
+  MAX_CHUNKS,
   drawMetadata,
   readMetadata,
   readDataCells,
@@ -21,6 +23,7 @@ let currentChunkIndex = 0;
 let isFullscreen = false;
 let mediaStream = null;
 let videoTrack = null;
+let expectedTotalChunks = null;
 
 // DOM Elements
 const senderModeBtn = document.getElementById('sender-mode-btn');
@@ -111,9 +114,14 @@ async function startTransmission() {
       return;
     }
     
-    // Prepare chunks - we'll encode 3 bits per cell (8 colors = 2^3 bits)
+    const maxBitsPerFrame = getMaxBitsPerFrame(senderCanvas);
+    if (maxBitsPerFrame < 1) {
+      statusMessage.textContent = 'Canvas is too small to transmit data.';
+      return;
+    }
+
     const binaryData = textToBinary(serializedData);
-    dataChunks = chunkBinaryData(binaryData, getMaxBitsPerFrame(senderCanvas));
+    dataChunks = chunkBinaryData(binaryData, maxBitsPerFrame, MAX_CHUNKS);
     
     statusMessage.textContent = `Ready to transmit ${dataChunks.length} slides`;
     startTransmissionBtn.disabled = true;
@@ -143,7 +151,8 @@ async function startReceiving() {
     
     // Initialize receiving data structures
     currentChunkIndex = 0;
-    dataChunks = [];
+  dataChunks = [];
+  expectedTotalChunks = null;
     progressContainer.classList.remove('hidden');
   } catch (error) {
     console.error('Error starting reception:', error);
@@ -209,12 +218,12 @@ function showNextChunk() {
   const cols = Math.floor(senderCanvas.width / GRID_SIZE);
   const rows = Math.floor(senderCanvas.height / GRID_SIZE);
   
-  for (let i = 0; i < chunk.length; i += 3) {
-    // Group bits into 3-bit chunks for color encoding
-    const colorIndex = getColorIndexForBits(chunk.slice(i, i + 3));
+  for (let i = 0; i < chunk.length; i += COLOR_BIT_WIDTH) {
+    // Group bits for color encoding
+    const colorIndex = getColorIndexForBits(chunk.slice(i, i + COLOR_BIT_WIDTH));
     
     // Calculate position (skip top row, which is for metadata)
-    const cellIndex = Math.floor(i / 3);
+    const cellIndex = Math.floor(i / COLOR_BIT_WIDTH);
     const row = Math.floor(cellIndex / cols) + 1; // +1 to skip metadata row
     const col = cellIndex % cols;
     
@@ -257,6 +266,14 @@ function processReceivedSlide() {
     }
     
     const { chunkIndex, totalChunks, chunkBitLength } = metadata;
+
+    if (expectedTotalChunks === null) {
+      expectedTotalChunks = totalChunks;
+      dataChunks.length = totalChunks;
+    } else if (totalChunks !== expectedTotalChunks) {
+      statusMessage.textContent = `Ignoring slide from a different transfer (${totalChunks} chunks, expected ${expectedTotalChunks}).`;
+      return;
+    }
     
     // Read data cells
     const binaryData = readDataCells(receiverCtx, chunkBitLength);
@@ -275,10 +292,10 @@ function processReceivedSlide() {
     }
     
     // Update progress
-    updateProgress(countCapturedChunks(), totalChunks);
+    updateProgress(countCapturedChunks(), expectedTotalChunks);
     
     // Check if we have all chunks
-    if (countCapturedChunks() === totalChunks) {
+    if (countCapturedChunks() === expectedTotalChunks) {
       recreateData();
     }
   } catch (error) {
@@ -321,6 +338,12 @@ async function recreateData() {
 
 // Function to update progress indicators
 function updateProgress(current, total) {
+  if (!Number.isSafeInteger(total) || total < 1) {
+    progressText.textContent = '0% (0/0)';
+    progressFill.style.width = '0%';
+    return;
+  }
+
   const percentage = Math.round((current / total) * 100);
   progressText.textContent = `${percentage}% (${current}/${total})`;
   progressFill.style.width = `${percentage}%`;
@@ -351,4 +374,5 @@ function stopReceiving() {
   stopReceivingBtn.disabled = true;
   statusMessage.textContent = 'Reception stopped';
   progressContainer.classList.add('hidden');
+  expectedTotalChunks = null;
 }
