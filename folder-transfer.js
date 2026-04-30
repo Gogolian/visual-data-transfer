@@ -117,9 +117,24 @@ async function writeFile(fileData, folderPath) {
     throw new Error(`File size mismatch for ${fileData.name}`);
   }
 
-  const algorithm = fileData.hashAlgorithm === 'sha256' ? 'sha256' : 'md5';
+  if (typeof fileData.hash !== 'string') {
+    throw new Error(`Missing file hash for ${fileData.name}`);
+  }
+
+  let algorithm;
+  if (fileData.hashAlgorithm === 'sha256') {
+    algorithm = 'sha256';
+  } else if (
+    (fileData.hashAlgorithm === undefined || fileData.hashAlgorithm === 'md5') &&
+    fileData.hash.length === 32
+  ) {
+    algorithm = 'md5';
+  } else {
+    throw new Error(`Unsupported hash algorithm for ${fileData.name}`);
+  }
+
   const fileHash = hashBuffer(fileContent, algorithm);
-  if (typeof fileData.hash === 'string' && fileHash !== fileData.hash) {
+  if (fileHash !== fileData.hash) {
     throw new Error(`File integrity check failed for ${fileData.name}`);
   }
 

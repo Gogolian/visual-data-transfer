@@ -210,7 +210,7 @@ function showNextChunk() {
   
   for (let i = 0; i < chunk.length; i += 3) {
     // Group bits into 3-bit chunks for color encoding
-    const colorIndex = parseInt(chunk.substr(i, 3).padEnd(3, '0'), 2);
+    const colorIndex = parseInt(chunk.slice(i, i + 3).padEnd(3, '0'), 2);
     
     // Calculate position (skip top row, which is for metadata)
     const cellIndex = Math.floor(i / 3);
