@@ -6,6 +6,7 @@ const {
   drawMetadata,
   readMetadata,
   readDataCells,
+  getColorIndexForBits,
   textToBinary,
   binaryToText,
   chunkBinaryData
@@ -65,8 +66,8 @@ test('metadata includes chunk length and data reader trims trailing cells', () =
   drawMetadata(ctx, 2, 4, chunk.length);
 
   for (let i = 0; i < chunk.length; i += 3) {
-    const bits = chunk.slice(i, i + 3).padEnd(3, '0');
-    const colorIndex = parseInt(bits, 2);
+    const bits = chunk.slice(i, i + 3);
+    const colorIndex = getColorIndexForBits(bits);
     const cellIndex = Math.floor(i / 3);
     ctx.fillStyle = COLORS[colorIndex];
     ctx.fillRect(cellIndex * GRID_SIZE, GRID_SIZE, GRID_SIZE, GRID_SIZE);

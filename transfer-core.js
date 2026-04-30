@@ -161,6 +161,14 @@
     return closestIndex;
   }
 
+  function getColorIndexForBits(bits) {
+    if (!/^[01]{1,3}$/.test(bits)) {
+      throw new Error('Color bits must contain between 1 and 3 binary digits.');
+    }
+
+    return parseInt(bits.padEnd(COLOR_BIT_WIDTH, '0'), 2);
+  }
+
   function hexToRgb(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (!result) {
@@ -214,6 +222,7 @@
     readMetadata,
     readDataCells,
     getClosestColorIndex,
+    getColorIndexForBits,
     hexToRgb,
     textToBinary,
     binaryToText,

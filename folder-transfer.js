@@ -121,19 +121,11 @@ async function writeFile(fileData, folderPath) {
     throw new Error(`Missing file hash for ${fileData.name}`);
   }
 
-  let algorithm;
-  if (fileData.hashAlgorithm === 'sha256') {
-    algorithm = 'sha256';
-  } else if (
-    (fileData.hashAlgorithm === undefined || fileData.hashAlgorithm === 'md5') &&
-    fileData.hash.length === 32
-  ) {
-    algorithm = 'md5';
-  } else {
+  if (fileData.hashAlgorithm !== 'sha256') {
     throw new Error(`Unsupported hash algorithm for ${fileData.name}`);
   }
 
-  const fileHash = hashBuffer(fileContent, algorithm);
+  const fileHash = hashBuffer(fileContent);
   if (fileHash !== fileData.hash) {
     throw new Error(`File integrity check failed for ${fileData.name}`);
   }

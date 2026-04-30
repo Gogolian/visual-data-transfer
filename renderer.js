@@ -4,6 +4,7 @@ const {
   drawMetadata,
   readMetadata,
   readDataCells,
+  getColorIndexForBits,
   textToBinary,
   binaryToText,
   chunkBinaryData,
@@ -210,7 +211,7 @@ function showNextChunk() {
   
   for (let i = 0; i < chunk.length; i += 3) {
     // Group bits into 3-bit chunks for color encoding
-    const colorIndex = parseInt(chunk.slice(i, i + 3).padEnd(3, '0'), 2);
+    const colorIndex = getColorIndexForBits(chunk.slice(i, i + 3));
     
     // Calculate position (skip top row, which is for metadata)
     const cellIndex = Math.floor(i / 3);
