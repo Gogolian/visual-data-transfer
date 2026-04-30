@@ -1,4 +1,7 @@
-window.addEventListener('DOMContentLoaded', () => {
-    // Expose IPC renderer to the window
-    window.ipcRenderer = require('electron').ipcRenderer;
-  });
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('visualDataTransfer', {
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
+  prepareFolderData: (folderPath) => ipcRenderer.invoke('prepare-folder-data', folderPath),
+  saveFolderData: (data, destinationPath) => ipcRenderer.invoke('save-folder-data', data, destinationPath)
+});

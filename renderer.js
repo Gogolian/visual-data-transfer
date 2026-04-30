@@ -1,15 +1,15 @@
-// Constants for visual encoding
-const GRID_SIZE = 10; // Size of each data cell in pixels
-const COLORS = [
-  '#FF0000', // Red
-  '#00FF00', // Green
-  '#0000FF', // Blue
-  '#FFFF00', // Yellow
-  '#FF00FF', // Magenta
-  '#00FFFF', // Cyan
-  '#FFFFFF', // White
-  '#000000'  // Black
-];
+const {
+  GRID_SIZE,
+  COLORS,
+  drawMetadata,
+  readMetadata,
+  readDataCells,
+  getColorIndexForBits,
+  textToBinary,
+  binaryToText,
+  chunkBinaryData,
+  getMaxBitsPerFrame
+} = window.VisualTransferCore;
 
 // Application state
 let mode = null; // 'sender' or 'receiver'
@@ -82,7 +82,7 @@ function setMode(newMode) {
 
 // Function to select folder to send
 async function selectFolder() {
-  folderPath = await window.ipcRenderer.invoke('select-folder');
+  folderPath = await window.visualDataTransfer.selectFolder();
   
   if (folderPath) {
     statusMessage.textContent = `Selected folder: ${folderPath}`;
@@ -92,7 +92,7 @@ async function selectFolder() {
 
 // Function to select destination folder
 async function selectDestinationFolder() {
-  destinationPath = await window.ipcRenderer.invoke('select-folder');
+  destinationPath = await window.visualDataTransfer.selectFolder();
   
   if (destinationPath) {
     statusMessage.textContent = `Selected destination: ${destinationPath}`;
@@ -104,7 +104,7 @@ async function selectDestinationFolder() {
 async function startTransmission() {
   try {
     statusMessage.textContent = 'Preparing folder data...';
-    serializedData = await window.ipcRenderer.invoke('prepare-folder-data', folderPath);
+    serializedData = await window.visualDataTransfer.prepareFolderData(folderPath);
     
     if (!serializedData) {
       statusMessage.textContent = 'Error preparing folder data!';
@@ -113,7 +113,7 @@ async function startTransmission() {
     
     // Prepare chunks - we'll encode 3 bits per cell (8 colors = 2^3 bits)
     const binaryData = textToBinary(serializedData);
-    dataChunks = chunkBinaryData(binaryData, getMaxBitsPerFrame());
+    dataChunks = chunkBinaryData(binaryData, getMaxBitsPerFrame(senderCanvas));
     
     statusMessage.textContent = `Ready to transmit ${dataChunks.length} slides`;
     startTransmissionBtn.disabled = true;
@@ -130,15 +130,6 @@ async function startTransmission() {
     console.error('Error starting transmission:', error);
     statusMessage.textContent = 'Error starting transmission!';
   }
-}
-
-// Function to get maximum bits per frame based on canvas size
-function getMaxBitsPerFrame() {
-  const cols = Math.floor(senderCanvas.width / GRID_SIZE);
-  const rows = Math.floor(senderCanvas.height / GRID_SIZE);
-  // Each cell encodes 3 bits (8 colors)
-  // Reserve top row for metadata (chunk index, total chunks)
-  return (cols * (rows - 1)) * 3;
 }
 
 // Function to start receiving data
@@ -199,7 +190,7 @@ function toggleFullscreen(element) {
 
 // Function to show next chunk of data
 function showNextChunk() {
-  if (currentChunkIndex >= dataChunks.length) {
+    if (currentChunkIndex >= dataChunks.length) {
     statusMessage.textContent = 'Transmission complete!';
     nextSlideBtn.disabled = true;
     stopTransmissionBtn.disabled = false;
@@ -210,17 +201,17 @@ function showNextChunk() {
   senderCtx.fillStyle = '#000000';
   senderCtx.fillRect(0, 0, senderCanvas.width, senderCanvas.height);
   
-  // Draw header information
-  drawMetadata(senderCtx, currentChunkIndex, dataChunks.length);
-  
   // Draw data cells
   const chunk = dataChunks[currentChunkIndex];
+  const displayChunkIndex = currentChunkIndex;
+  drawMetadata(senderCtx, displayChunkIndex, dataChunks.length, chunk.length);
+
   const cols = Math.floor(senderCanvas.width / GRID_SIZE);
   const rows = Math.floor(senderCanvas.height / GRID_SIZE);
   
   for (let i = 0; i < chunk.length; i += 3) {
     // Group bits into 3-bit chunks for color encoding
-    const colorIndex = parseInt(chunk.substr(i, Math.min(3, chunk.length - i)), 2);
+    const colorIndex = getColorIndexForBits(chunk.slice(i, i + 3));
     
     // Calculate position (skip top row, which is for metadata)
     const cellIndex = Math.floor(i / 3);
@@ -235,39 +226,13 @@ function showNextChunk() {
   }
   
   // Update progress indicator
-  updateProgress(currentChunkIndex + 1, dataChunks.length);
-  statusMessage.textContent = `Showing slide ${currentChunkIndex + 1} of ${dataChunks.length}`;
+  updateProgress(displayChunkIndex + 1, dataChunks.length);
+  statusMessage.textContent = `Showing slide ${displayChunkIndex + 1} of ${dataChunks.length}`;
+  currentChunkIndex++;
   
   // Make sure canvas is fullscreen for sender
   if (!isFullscreen) {
     toggleFullscreen(senderCanvas);
-  }
-}
-
-// Function to draw metadata in the top row of the canvas
-function drawMetadata(ctx, chunkIndex, totalChunks) {
-  const cols = Math.floor(ctx.canvas.width / GRID_SIZE);
-  
-  // Convert numbers to binary
-  const chunkIndexBinary = chunkIndex.toString(2).padStart(16, '0');
-  const totalChunksBinary = totalChunks.toString(2).padStart(16, '0');
-  
-  // Draw chunk index (first 16 cells)
-  for (let i = 0; i < 16; i++) {
-    ctx.fillStyle = chunkIndexBinary[i] === '1' ? '#FFFFFF' : '#000000';
-    ctx.fillRect(i * GRID_SIZE, 0, GRID_SIZE, GRID_SIZE);
-  }
-  
-  // Draw total chunks (next 16 cells)
-  for (let i = 0; i < 16; i++) {
-    ctx.fillStyle = totalChunksBinary[i] === '1' ? '#FFFFFF' : '#000000';
-    ctx.fillRect((i + 16) * GRID_SIZE, 0, GRID_SIZE, GRID_SIZE);
-  }
-  
-  // Draw checksum pattern (remaining cells)
-  for (let i = 32; i < cols; i++) {
-    ctx.fillStyle = i % 2 === 0 ? '#FF0000' : '#00FF00';
-    ctx.fillRect(i * GRID_SIZE, 0, GRID_SIZE, GRID_SIZE);
   }
 }
 
@@ -284,17 +249,17 @@ function captureSlide() {
 function processReceivedSlide() {
   try {
     // Read metadata from top row
-    const metadata = readMetadata();
+    const metadata = readMetadata(receiverCtx);
     
     if (!metadata) {
       statusMessage.textContent = 'Could not read metadata. Adjust camera position and try again.';
       return;
     }
     
-    const { chunkIndex, totalChunks } = metadata;
+    const { chunkIndex, totalChunks, chunkBitLength } = metadata;
     
     // Read data cells
-    const binaryData = readDataCells();
+    const binaryData = readDataCells(receiverCtx, chunkBitLength);
     
     // Store the chunk
     if (dataChunks[chunkIndex]) {
@@ -322,121 +287,6 @@ function processReceivedSlide() {
   }
 }
 
-// Function to read metadata from the top row
-function readMetadata() {
-  const cols = Math.floor(receiverCanvas.width / GRID_SIZE);
-  const imageData = receiverCtx.getImageData(0, 0, cols * GRID_SIZE, GRID_SIZE);
-  const data = imageData.data;
-  
-  let chunkIndexBinary = '';
-  let totalChunksBinary = '';
-  
-  // Read chunk index (first 16 cells)
-  for (let i = 0; i < 16; i++) {
-    const pixelIndex = (i * GRID_SIZE + Math.floor(GRID_SIZE / 2)) * 4;
-    const r = data[pixelIndex];
-    const g = data[pixelIndex + 1];
-    const b = data[pixelIndex + 2];
-    const brightness = (r + g + b) / 3;
-    chunkIndexBinary += brightness > 128 ? '1' : '0';
-  }
-  
-  // Read total chunks (next 16 cells)
-  for (let i = 0; i < 16; i++) {
-    const pixelIndex = ((i + 16) * GRID_SIZE + Math.floor(GRID_SIZE / 2)) * 4;
-    const r = data[pixelIndex];
-    const g = data[pixelIndex + 1];
-    const b = data[pixelIndex + 2];
-    const brightness = (r + g + b) / 3;
-    totalChunksBinary += brightness > 128 ? '1' : '0';
-  }
-  
-  // Validate checksum pattern
-  let validChecksum = true;
-  for (let i = 32; i < Math.min(cols, 40); i++) {
-    const pixelIndex = (i * GRID_SIZE + Math.floor(GRID_SIZE / 2)) * 4;
-    const r = data[pixelIndex];
-    const g = data[pixelIndex + 1];
-    const b = data[pixelIndex + 2];
-    
-    const isRed = r > 200 && g < 100 && b < 100;
-    const isGreen = r < 100 && g > 200 && b < 100;
-    
-    if ((i % 2 === 0 && !isRed) || (i % 2 === 1 && !isGreen)) {
-      validChecksum = false;
-      break;
-    }
-  }
-  
-  if (!validChecksum) {
-    return null;
-  }
-  
-  const chunkIndex = parseInt(chunkIndexBinary, 2);
-  const totalChunks = parseInt(totalChunksBinary, 2);
-  
-  return { chunkIndex, totalChunks };
-}
-
-// Function to read data cells from the canvas
-function readDataCells() {
-  const cols = Math.floor(receiverCanvas.width / GRID_SIZE);
-  const rows = Math.floor(receiverCanvas.height / GRID_SIZE);
-  
-  let binaryData = '';
-  
-  for (let row = 1; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      // Sample from the center of each cell
-      const x = col * GRID_SIZE + Math.floor(GRID_SIZE / 2);
-      const y = row * GRID_SIZE + Math.floor(GRID_SIZE / 2);
-      
-      const pixel = receiverCtx.getImageData(x, y, 1, 1).data;
-      const colorIndex = getClosestColorIndex(pixel[0], pixel[1], pixel[2]);
-      
-      // Convert color index to 3 bits
-      const bits = colorIndex.toString(2).padStart(3, '0');
-      binaryData += bits;
-    }
-  }
-  
-  return binaryData;
-}
-
-// Function to find the closest matching color index
-function getClosestColorIndex(r, g, b) {
-  let minDistance = Infinity;
-  let closestIndex = 0;
-  
-  for (let i = 0; i < COLORS.length; i++) {
-    const color = COLORS[i];
-    const colorRgb = hexToRgb(color);
-    
-    const distance = Math.sqrt(
-      Math.pow(r - colorRgb.r, 2) +
-      Math.pow(g - colorRgb.g, 2) +
-      Math.pow(b - colorRgb.b, 2)
-    );
-    
-    if (distance < minDistance) {
-      minDistance = distance;
-      closestIndex = i;
-    }
-  }
-  
-  return closestIndex;
-}
-
-// Function to convert hex color to RGB
-function hexToRgb(hex) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : null;
-}
-
 // Function to count captured chunks
 function countCapturedChunks() {
   return dataChunks.filter(chunk => chunk !== undefined && chunk !== null).length;
@@ -454,7 +304,7 @@ async function recreateData() {
     const reconstructedText = binaryToText(fullBinaryData);
     
     // Save reconstructed data
-    const success = await window.ipcRenderer.invoke('save-folder-data', reconstructedText, destinationPath);
+    const success = await window.visualDataTransfer.saveFolderData(reconstructedText, destinationPath);
     
     if (success) {
       statusMessage.textContent = 'Data successfully received and saved!';
@@ -501,43 +351,4 @@ function stopReceiving() {
   stopReceivingBtn.disabled = true;
   statusMessage.textContent = 'Reception stopped';
   progressContainer.classList.add('hidden');
-}
-
-// Utility function to convert text to binary string
-function textToBinary(text) {
-  let binaryResult = '';
-  
-  for (let i = 0; i < text.length; i++) {
-    const charCode = text.charCodeAt(i);
-    const binary = charCode.toString(2).padStart(16, '0'); // 16 bits per character (supports Unicode)
-    binaryResult += binary;
-  }
-  
-  return binaryResult;
-}
-
-// Utility function to convert binary string back to text
-function binaryToText(binary) {
-  let text = '';
-  
-  for (let i = 0; i < binary.length; i += 16) {
-    const chunk = binary.substr(i, 16);
-    if (chunk.length === 16) {
-      const charCode = parseInt(chunk, 2);
-      text += String.fromCharCode(charCode);
-    }
-  }
-  
-  return text;
-}
-
-// Utility function to chunk binary data
-function chunkBinaryData(binaryData, chunkSize) {
-  const chunks = [];
-  
-  for (let i = 0; i < binaryData.length; i += chunkSize) {
-    chunks.push(binaryData.substr(i, chunkSize));
-  }
-  
-  return chunks;
 }
