@@ -151,8 +151,8 @@ async function startReceiving() {
     
     // Initialize receiving data structures
     currentChunkIndex = 0;
-  dataChunks = [];
-  expectedTotalChunks = null;
+    dataChunks = [];
+    expectedTotalChunks = null;
     progressContainer.classList.remove('hidden');
   } catch (error) {
     console.error('Error starting reception:', error);
