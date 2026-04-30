@@ -51,7 +51,8 @@ async function scanFolder(rootPath, relativePath = '') {
     children: []
   };
 
-  const entries = await fs.readdir(rootPath, { withFileTypes: true });
+  const entries = (await fs.readdir(rootPath, { withFileTypes: true }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 
   for (const entry of entries) {
     const entryPath = path.join(rootPath, entry.name);

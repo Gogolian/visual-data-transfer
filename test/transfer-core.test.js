@@ -57,6 +57,11 @@ test('binary data is chunked without padding', () => {
   assert.deepEqual(chunkBinaryData('1010101', 3), ['101', '010', '1']);
 });
 
+test('binary chunking rejects invalid data and transfers beyond chunk limit', () => {
+  assert.throws(() => chunkBinaryData('102', 3), /Binary data/);
+  assert.throws(() => chunkBinaryData('1010101', 3, 2), /maximum is 2/);
+});
+
 test('metadata includes chunk length and data reader trims trailing cells', () => {
   const ctx = createContext();
   const chunk = '10101';
