@@ -4,7 +4,8 @@
     "description": "Transfer folders between computers using visual encoding",
     "main": "main.js",
     "scripts": {
-      "start": "electron ."
+      "start": "electron .",
+      "test": "node --test"
     },
     "author": "",
     "license": "MIT",
