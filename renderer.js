@@ -339,7 +339,7 @@ async function recreateData() {
 // Function to update progress indicators
 function updateProgress(current, total) {
   if (!Number.isSafeInteger(total) || total < 1) {
-    progressText.textContent = '0% (0/0)';
+    progressText.textContent = 'Progress unavailable';
     progressFill.style.width = '0%';
     return;
   }
